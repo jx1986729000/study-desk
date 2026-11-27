@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -537,6 +537,7 @@ label.f{display:block;font-size:12.5px;color:var(--sub);margin:0 0 4px 2px}
       <div class="kv"><span class="k">错题</span><span class="v" id="cntMk">0</span></div>
       <div class="kv"><span class="k">成绩记录</span><span class="v" id="cntSc">0</span></div>
       <div class="kv"><span class="k">累计专注</span><span class="v" id="cntMin">0 分钟</span></div>
+      <div class="kv"><span class="k">备份</span><span class="v" id="cntBak">—</span></div>
     </div>
 
     <div class="card">
@@ -1324,6 +1325,17 @@ label.f{display:block;font-size:12.5px;color:var(--sub);margin:0 0 4px 2px}
     var total = Object.keys(state.focus).reduce(function (a, k) { return a + Number(state.focus[k] || 0); }, 0);
     $("#cntMin").textContent = total + " 分钟";
 
+    var le = s.lastExport;
+    var bak = $("#cntBak");
+    if (!le) {
+      bak.textContent = "还没导出过";
+      bak.style.color = "var(--warn)";
+    } else {
+      var d = dayDiff(le, today());
+      bak.textContent = d <= 0 ? "今天导过" : (d + " 天前导过");
+      bak.style.color = d > 7 ? "var(--warn)" : "";
+    }
+
     // 课程表编辑
     var h = "";
     for (var d = 1; d <= 5; d++) {
@@ -1631,6 +1643,8 @@ label.f{display:block;font-size:12.5px;color:var(--sub);margin:0 0 4px 2px}
       a.download = "学习工作台备份-" + today() + ".json";
       document.body.appendChild(a);
       a.click();
+      state.settings.lastExport = today();
+      save();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       toast("已导出");
     });
@@ -2057,10 +2071,23 @@ label.f{display:block;font-size:12.5px;color:var(--sub);margin:0 0 4px 2px}
   }
 
   // 装了 Service Worker 才能离线打开、加到主屏幕当 App 用
+  // 顺便做自动更新：新版本一装好，页面自己刷一次到最新
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    var hadController = !!navigator.serviceWorker.controller;
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("sw.js").catch(function () { });
+      navigator.serviceWorker.register("sw.js").then(function (reg) {
+        reg.update().catch(function () { });
+        setInterval(function () { reg.update().catch(function () { }); }, 30 * 60 * 1000);
+      }).catch(function () { });
     });
+    if (hadController) {
+      var reloading = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (reloading) return;
+        reloading = true;
+        location.reload();
+      });
+    }
   }
 
   if (document.readyState === "loading") {
