@@ -1,5 +1,5 @@
-/* 初一学习工作台 · 离线缓存 */
-var CACHE = "study-desk-v1";
+/* 初一学习工作台 · 离线缓存（网络优先：联网时永远拿最新版，断网才用缓存） */
+var CACHE = "study-desk-v2";
 var ASSETS = [
   "./",
   "./index.html",
@@ -31,20 +31,22 @@ self.addEventListener("fetch", function (e) {
   var req = e.request;
   if (req.method !== "GET") return;
   var url = new URL(req.url);
-  // 接口请求不进缓存
   if (url.pathname.indexOf("/api/") === 0) return;
   if (url.origin !== location.origin) return;
 
   e.respondWith(
-    caches.match(req).then(function (hit) {
-      var net = fetch(req).then(function (res) {
+    fetch(req, { cache: "no-store" })
+      .then(function (res) {
         if (res && res.status === 200) {
           var copy = res.clone();
           caches.open(CACHE).then(function (c) { c.put(req, copy); });
         }
         return res;
-      }).catch(function () { return hit; });
-      return hit || net;
-    })
+      })
+      .catch(function () {
+        return caches.match(req).then(function (hit) {
+          return hit || caches.match("./index.html");
+        });
+      })
   );
 });
